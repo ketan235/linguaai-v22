@@ -1,0 +1,95 @@
+/* ── CSS Variables ─────────────────────────────── */
+:root {
+  --void:    #05050f;
+  --deep:    #080814;
+  --raised:  #0e0e20;
+  --surface: #13132a;
+  --border:  rgba(255,255,255,.08);
+  --bhi:     rgba(255,255,255,.18);
+  --text:    #f0f0ff;
+  --muted:   rgba(240,240,255,.45);
+  --faint:   rgba(240,240,255,.22);
+  --cyan:    #00e5ff;
+  --cdim:    rgba(0,229,255,.10);
+  --green:   #00ff9d;
+  --rose:    #ff6b9d;
+  --gold:    #ffd700;
+  --violet:  #a78bfa;
+  --font:    'DM Sans', 'Inter', system-ui, sans-serif;
+  --mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --radius:  16px;
+  --shadow:  0 8px 32px rgba(0,0,0,.4);
+}
+
+/* ── Reset ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; font-family: var(--font); background: var(--void); color: var(--text); overflow: hidden; }
+
+/* ── Scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }
+
+/* ── Smooth scrolling ──────────────────────────── */
+.scroll { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+
+/* ── Animations ────────────────────────────────── */
+@keyframes fadeUp   { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+@keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
+@keyframes slideUp  { from { opacity:0; transform:translateY(28px) scale(.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+@keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes spin     { to { transform:rotate(360deg) } }
+@keyframes shake    { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+@keyframes orbDrift { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(20px,-15px) scale(1.05)} 66%{transform:translate(-10px,20px) scale(.97)} }
+@keyframes gradShift{ 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+@keyframes ripple   { to { transform:scale(2.5); opacity:0 } }
+@keyframes typing   { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+/* ── Google button ─────────────────────────────── */
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 13px 20px; border-radius: 14px;
+  background: white; border: none; color: #1f1f1f;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  font-family: var(--font); transition: transform .15s, box-shadow .15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+.google-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+.google-btn svg { flex-shrink: 0; }
+
+/* ── Divider with text ─────────────────────────── */
+.divider { display:flex; align-items:center; gap:12px; color:var(--faint); font-size:13px; }
+.divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── Responsive helpers ────────────────────────── */
+.dshow { display: flex !important; }
+.mshow { display: none  !important; }
+.d-hide { display: inline !important; }
+
+@media (max-width: 600px) {
+  .dshow  { display: none  !important; }
+  .mshow  { display: flex  !important; }
+  .d-hide { display: none  !important; }
+  .scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+  .chat-hdr-inner { flex-wrap: wrap !important; gap: 6px !important; }
+  .chat-hdr-inner select { width: 100% !important; }
+  .hero-card { display: none !important; }
+  .hero-ctas { flex-direction: column !important; }
+}
+@media (min-width: 601px) and (max-width: 1023px) {
+  .dshow { display: flex !important; }
+  .mshow { display: none  !important; }
+  .sb-force-collapse > div:first-child { width: 56px !important; min-width: 56px !important; }
+}
+@media (min-width: 1024px) {
+  .dshow  { display: flex   !important; }
+  .mshow  { display: none   !important; }
+  .d-hide { display: inline !important; }
+}
+
+/* ── Input resets ──────────────────────────────── */
+input, textarea, select, button { font-family: var(--font); }
+input:focus, textarea:focus, select:focus { outline: none; }
+button { cursor: pointer; }
+a { text-decoration: none; color: inherit; }
