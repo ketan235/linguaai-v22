@@ -11,8 +11,14 @@ const api = {
     const tok = this._token || localStorage.getItem("lingua_token");
     if (tok) h["Authorization"] = `Bearer ${tok}`;
     if (!isForm && body) h["Content-Type"] = "application/json";
-    const r = await fetch(`/api${path}`, { method, headers: h, body: isForm ? body : body ? JSON.stringify(body) : undefined });
-    const d = await r.json().catch(() => ({}));
+    const BASE_URL = import.meta.env.VITE_API_URL;
+
+const r = await fetch(`${BASE_URL}/api${path}`, {
+  method,
+  headers: h,
+  body: isForm ? body : body ? JSON.stringify(body) : undefined
+});
+ const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
     return d;
   },
