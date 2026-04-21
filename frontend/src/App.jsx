@@ -22,6 +22,7 @@ const r = await fetch(`${BASE_URL}/api${path}`, {
     if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
     return d;
   },
+  
   async signin(e, p)    { const d = await this.req("POST", "/auth/signin", { email: e, password: p }); this._set(d.token); return d.user; },
   async signup(n, e, p) { const d = await this.req("POST", "/auth/signup", { name: n, email: e, password: p }); this._set(d.token); return d.user; },
   async me()            { return this.req("GET", "/auth/me"); },
