@@ -109,7 +109,7 @@ const api = {
 
 api.init();
 
-export default api;
+
 /* ── Language config ───────────────────────────────────── */
 const LANGUAGES = ["English","Spanish","French","German","Italian","Portuguese","Russian","Chinese","Japanese","Korean","Arabic","Hindi","Dutch","Polish","Swedish","Turkish","Vietnamese","Thai","Greek","Hebrew","Indonesian","Malay","Czech","Romanian","Hungarian","Danish","Finnish","Norwegian","Ukrainian","Persian","Bengali","Tamil","Telugu","Marathi","Gujarati","Kannada","Punjabi"];
 
