@@ -2,7 +2,7 @@
 import express      from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import Conversation from '../models/Conversation.js';
-import { chatWithHistory, detectLanguage } from '../services/gemini.service.js';
+import { chatWithHistory, detectLanguage } from '../services/ai.service.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -10,7 +10,7 @@ router.use(requireAuth);
 // POST /api/chat/message
 router.post('/message', async (req, res) => {
   try {
-    const { conversationId, targetLanguage } = req.body;
+    const { conversationId, targetLanguage, provider } = req.body;
     const content = (req.body.content || req.body.message || '').trim();
     if (!content) return res.status(400).json({ error: 'Message content is required.' });
 
@@ -27,8 +27,8 @@ router.post('/message', async (req, res) => {
     }
 
     const history = conv.messages.slice(-20);
-    const langInfo = await detectLanguage(content).catch(() => ({ language: 'Unknown' }));
-    const aiText   = await chatWithHistory(history, content, targetLanguage || conv.targetLanguage);
+    const langInfo = await detectLanguage(content, provider).catch(() => ({ language: 'Unknown' }));
+    const aiText   = await chatWithHistory(history, content, targetLanguage || conv.targetLanguage, provider);
 
     const userMsg = { role: 'user',      content, detectedLanguage: langInfo.language };
     const aiMsg   = { role: 'assistant', content: aiText };
@@ -42,6 +42,7 @@ router.post('/message', async (req, res) => {
     res.json({
       conversationId: conv._id,
       reply: aiText,
+      provider: provider || 'default',
       userMessage:     { id: savedUser._id, role: 'user',      content: savedUser.content,  detectedLanguage: langInfo.language, timestamp: savedUser.createdAt },
       assistantMessage:{ id: savedAI._id,   role: 'assistant', content: savedAI.content,    timestamp: savedAI.createdAt },
       detectedLanguage: langInfo.language,

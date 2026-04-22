@@ -17,10 +17,14 @@ import fileRoutes      from './routes/file.routes.js';
 
 dotenv.config();
 
-if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'your_groq_api_key_here') {
-  console.error('\n❌  GROQ_API_KEY is missing! Edit backend/.env\n');
+const hasGroq   = process.env.GROQ_API_KEY   && process.env.GROQ_API_KEY   !== 'your_groq_api_key_here';
+const hasGemini = process.env.GEMINI_API_KEY  && process.env.GEMINI_API_KEY  !== 'your_gemini_api_key_here';
+
+if (!hasGroq && !hasGemini) {
+  console.error('\n❌  No AI API key found! Set GROQ_API_KEY or GEMINI_API_KEY in backend/.env\n');
   process.exit(1);
 }
+const enabledProviders = [hasGroq && 'Groq', hasGemini && 'Gemini'].filter(Boolean);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -64,7 +68,7 @@ app.use('/api/translate', translateRoutes);
 app.use('/api/file',      fileRoutes);
 
 app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', provider: 'Groq', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected', timestamp: new Date().toISOString() })
+  res.json({ status: 'ok', providers: enabledProviders, db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected', timestamp: new Date().toISOString() })
 );
 
 app.use((err, _req, res, _next) => {
@@ -75,7 +79,7 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🌐 LinguaAI backend running!');
   console.log(`   → http://localhost:${PORT}`);
-  console.log('✅  Groq API key loaded');
+  console.log(`✅  AI providers: ${enabledProviders.join(', ')}`);
   console.log('📦  MongoDB store active\n');
 });
 

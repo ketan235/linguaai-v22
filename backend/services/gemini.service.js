@@ -1,18 +1,15 @@
-// services/groq.service.js (replaces gemini.service.js)
-import Groq from 'groq-sdk';
+// services/gemini.service.js — Google Gemini provider
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Models tried in order — llama3 has the highest free quota on Groq
+// Models tried in order (flash is free-tier, pro is more capable)
 const MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'llama3-70b-8192',
-  'llama3-8b-8192',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.0-pro',
 ];
 
 const SYSTEM_PROMPT = `You are LinguaAI, an expert multilingual assistant and translator. You can:
@@ -27,18 +24,20 @@ When asked to translate, provide ONLY the translation unless additional context 
 If the user writes in a non-English language, respond in that same language unless they ask otherwise.`;
 
 // ── Core: try each model until one works ─────────────
-async function withFallback(messages, options = {}) {
+async function withFallback(prompt, options = {}) {
   let lastErr;
-  for (const model of MODELS) {
+  for (const modelName of MODELS) {
     try {
-      const res = await groq.chat.completions.create({
-        model,
-        messages,
-        temperature: 0.7,
-        max_tokens: options.maxTokens || 2048,
-        ...options
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: options.system || SYSTEM_PROMPT,
+        generationConfig: {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxTokens || 2048,
+        },
       });
-      return res.choices[0]?.message?.content || '';
+      const result = await model.generateContent(prompt);
+      return result.response.text();
     } catch (err) {
       lastErr = err;
       const msg = err.message || '';
@@ -46,37 +45,42 @@ async function withFallback(messages, options = {}) {
       const retryable = status === 404 || status === 429 ||
         msg.includes('404') || msg.includes('429') ||
         msg.includes('quota') || msg.includes('rate limit') ||
-        msg.includes('model_not_found') || msg.includes('not found');
+        msg.includes('not found') || msg.includes('RESOURCE_EXHAUSTED');
       if (retryable) {
-        console.warn(`⚠️  [${model}] ${msg.slice(0, 80)} — trying next model...`);
+        console.warn(`⚠️  [gemini/${modelName}] ${msg.slice(0, 80)} — trying next model...`);
         continue;
       }
       throw err;
     }
   }
   const msg = lastErr?.message || '';
-  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('quota')) {
-    throw new Error('Groq API rate limit hit on all models. Please wait ~30 seconds and retry.');
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED')) {
+    throw new Error('Gemini API rate limit hit on all models. Please wait ~30 seconds and retry.');
   }
   throw lastErr;
 }
 
-// ── Chat with history ──────────────────────────────
-export async function chatWithHistory(history = [], userMessage, targetLanguage = null) {
+// Build a single prompt string from chat history
+function buildChatPrompt(history, userMessage, targetLanguage) {
   const systemContent = targetLanguage
     ? `${SYSTEM_PROMPT}\n\nThe user prefers responses in: ${targetLanguage}`
     : SYSTEM_PROMPT;
 
-  const messages = [
-    { role: 'system', content: systemContent },
-    ...history.slice(-20).map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content
-    })),
-    { role: 'user', content: userMessage }
-  ];
+  const lines = [];
+  for (const m of history.slice(-20)) {
+    const role = m.role === 'assistant' ? 'Assistant' : 'User';
+    lines.push(`${role}: ${m.content}`);
+  }
+  lines.push(`User: ${userMessage}`);
+  lines.push('Assistant:');
 
-  return withFallback(messages);
+  return { prompt: lines.join('\n\n'), system: systemContent };
+}
+
+// ── Chat with history ──────────────────────────────
+export async function chatWithHistory(history = [], userMessage, targetLanguage = null) {
+  const { prompt, system } = buildChatPrompt(history, userMessage, targetLanguage);
+  return withFallback(prompt, { system });
 }
 
 // ── Translate text ─────────────────────────────────
@@ -85,16 +89,19 @@ export async function translateText(text, targetLanguage, sourceLanguage = 'auto
     ? 'Detect the source language automatically.'
     : `Source language: ${sourceLanguage}.`;
 
-  const messages = [
-    { role: 'system', content: 'You are a professional translator. Return only valid JSON, no markdown, no extra text.' },
-    { role: 'user', content: `${src} Translate the following text to ${targetLanguage}.
+  const prompt = `${src} Translate the following text to ${targetLanguage}.
 Return a JSON object with exactly these fields:
 {"translation":"the translated text","detectedLanguage":"source language name in English","confidence":"high|medium|low"}
 
-Text: ${text}` }
-  ];
+Return ONLY the JSON object, no markdown, no extra text.
 
-  const raw = await withFallback(messages, { maxTokens: 1024, temperature: 0.3 });
+Text: ${text}`;
+
+  const raw = await withFallback(prompt, {
+    system: 'You are a professional translator. Return only valid JSON, no markdown, no extra text.',
+    temperature: 0.3,
+    maxTokens: 1024,
+  });
   try {
     return JSON.parse(raw.replace(/```json|```/g, '').trim());
   } catch {
@@ -104,16 +111,17 @@ Text: ${text}` }
 
 // ── Detect language ───────────────────────────────
 export async function detectLanguage(text) {
-  const messages = [
-    { role: 'system', content: 'You detect languages. Return only valid JSON, no markdown.' },
-    { role: 'user', content: `Detect the language of this text and return ONLY a JSON object:
+  const prompt = `Detect the language of this text and return ONLY a JSON object:
 {"language":"language name in English","code":"ISO 639-1 code","confidence":"high|medium|low"}
 
-Text: ${text.substring(0, 500)}` }
-  ];
+Text: ${text.substring(0, 500)}`;
 
   try {
-    const raw = await withFallback(messages, { maxTokens: 128, temperature: 0.1 });
+    const raw = await withFallback(prompt, {
+      system: 'You detect languages. Return only valid JSON, no markdown.',
+      temperature: 0.1,
+      maxTokens: 128,
+    });
     return JSON.parse(raw.replace(/```json|```/g, '').trim());
   } catch {
     return { language: 'Unknown', code: 'unknown', confidence: 'low' };
@@ -132,11 +140,12 @@ export async function translateDocumentContent(text, targetLanguage, sourceLangu
 
   const results = [];
   for (const chunk of chunks) {
-    const messages = [
-      { role: 'system', content: 'You are a professional translator. Return only the translated text, preserving all formatting.' },
-      { role: 'user', content: `${src} Translate this text to ${targetLanguage}:\n\n${chunk}` }
-    ];
-    const out = await withFallback(messages, { maxTokens: 4096, temperature: 0.3 });
+    const prompt = `${src} Translate this text to ${targetLanguage}. Return only the translated text, preserving all formatting.\n\n${chunk}`;
+    const out = await withFallback(prompt, {
+      system: 'You are a professional translator. Return only the translated text, preserving all formatting.',
+      temperature: 0.3,
+      maxTokens: 4096,
+    });
     results.push(out);
   }
   return results.join('\n');

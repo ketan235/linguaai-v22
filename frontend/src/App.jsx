@@ -11,18 +11,11 @@ const api = {
     const tok = this._token || localStorage.getItem("lingua_token");
     if (tok) h["Authorization"] = `Bearer ${tok}`;
     if (!isForm && body) h["Content-Type"] = "application/json";
-    const BASE_URL = import.meta.env.VITE_API_URL;
-
-const r = await fetch(`${BASE_URL}/api${path}`, {
-  method,
-  headers: h,
-  body: isForm ? body : body ? JSON.stringify(body) : undefined
-});
- const d = await r.json().catch(() => ({}));
+    const r = await fetch(`/api${path}`, { method, headers: h, body: isForm ? body : body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
     return d;
   },
-  
   async signin(e, p)    { const d = await this.req("POST", "/auth/signin", { email: e, password: p }); this._set(d.token); return d.user; },
   async signup(n, e, p) { const d = await this.req("POST", "/auth/signup", { name: n, email: e, password: p }); this._set(d.token); return d.user; },
   async me()            { return this.req("GET", "/auth/me"); },
@@ -31,10 +24,10 @@ const r = await fetch(`${BASE_URL}/api${path}`, {
   async resetPassword(token, password) { return this.req("POST", "/auth/reset-password", { token, password }); },
   async getConvs()      { return this.req("GET", "/chat/conversations"); },
   async getMsgs(id)     { return this.req("GET", `/chat/conversations/${id}`); },
-  async send(cid, content, tl) { return this.req("POST", "/chat/message", { conversationId: cid, content, targetLanguage: tl }); },
+  async send(cid, content, tl, provider) { return this.req("POST", "/chat/message", { conversationId: cid, content, targetLanguage: tl, provider }); },
   async delConv(id)     { return this.req("DELETE", `/chat/conversations/${id}`); },
-  async uploadFile(file, tl) {
-    const fd = new FormData(); fd.append("file", file); fd.append("targetLanguage", tl);
+  async uploadFile(file, tl, provider) {
+    const fd = new FormData(); fd.append("file", file); fd.append("targetLanguage", tl); if (provider) fd.append("provider", provider);
     return this.req("POST", "/file/upload", fd, true);
   },
   async googleStatus()  { return this.req("GET", "/auth/google/status"); },
@@ -68,8 +61,8 @@ function pickVoice(lang) {
 
 /* ── Feature data ──────────────────────────────────────── */
 const FEATURES = [
-  { icon:"🌍", title:"37+ Languages",        desc:"Chat and translate across 37+ world languages with native-level accuracy powered by Groq's LLaMA 3." },
-  { icon:"⚡", title:"Ultra-Fast Responses",  desc:"Near-instant AI responses from Groq's LLaMA 3 — the fastest open-source inference engine available." },
+  { icon:"🌍", title:"37+ Languages",        desc:"Chat and translate across 37+ world languages with native-level accuracy powered by Groq's LLaMA 3 or Google Gemini." },
+  { icon:"⚡", title:"Dual AI Providers",     desc:"Switch between Groq (ultra-fast LLaMA 3) and Google Gemini on the fly — pick the model that works best for your task." },
   { icon:"📄", title:"File Translation",      desc:"Upload PDFs, Word docs, or text files. Get a fully translated, downloadable PDF back instantly." },
   { icon:"🎤", title:"Voice in Any Language", desc:"Speak your message and hear AI responses read aloud — full multilingual speech input and output." },
   { icon:"💬", title:"Persistent Chat History",desc:"All your conversations are saved to MongoDB. Resume any chat from any device, anytime." },
@@ -161,7 +154,7 @@ function LandingPage({ onGetStarted }) {
         <div className="lp-orb" style={{ width:700,height:700,top:"-15%",left:"-15%",background:"radial-gradient(circle,rgba(0,229,255,.1) 0%,transparent 70%)",animationDelay:"0s" }}/>
         <div className="lp-orb" style={{ width:500,height:500,bottom:"5%",right:"-10%",background:"radial-gradient(circle,rgba(167,139,250,.08) 0%,transparent 70%)",animationDelay:"-4s" }}/>
         <div style={{ flex:"1 1 360px",maxWidth:580,position:"relative",zIndex:1 }}>
-          <div className="lp-badge">✨ Powered by Groq · LLaMA 3 · MongoDB</div>
+          <div className="lp-badge">✨ Powered by Groq · Gemini · LLaMA 3 · MongoDB</div>
           <h1 className="lp-h1">
             Break Every<br/>
             <span className="lp-grad">Language Barrier</span><br/>
@@ -829,6 +822,7 @@ function ChatApp({ user, onSignout }) {
   const [isListening,   setIsListening]   = useState(false);
   const [speakingId,    setSpeakingId]    = useState(null);
   const [attachedFile,  setAttachedFile]  = useState(null);
+  const [aiProvider,    setAiProvider]    = useState("groq");
 
   const recognitionRef = useRef(null);
   const fileInputRef   = useRef(null);
@@ -923,12 +917,12 @@ function ChatApp({ user, onSignout }) {
       const tmpId = `t${Date.now()}`;
       setMsgs(prev => [...prev, { id: tmpId, role:"user", content: userContent }]);
       try {
-        const result = await api.uploadFile(file, targetLang);
+        const result = await api.uploadFile(file, targetLang, aiProvider);
         const aiMsg = { id: `a${Date.now()}`, role:"assistant", content:`✅ File translated! Here's the result for **${file.name}**:`, fileResult: result };
         setMsgs(prev => [...prev.filter(m => m.id !== tmpId), { id: tmpId, role:"user", content: userContent }, aiMsg]);
         if (!convId) {
           // Save a "file translation" conversation entry
-          api.send(null, userContent, targetLang).then(d => { setConvId(d.conversationId); loadConvs(); }).catch(() => {});
+          api.send(null, userContent, targetLang, aiProvider).then(d => { setConvId(d.conversationId); loadConvs(); }).catch(() => {});
         }
         loadConvs();
       } catch (ex) {
@@ -944,7 +938,7 @@ function ChatApp({ user, onSignout }) {
     const tmpId = `t${Date.now()}`;
     setMsgs(prev => [...prev, { id: tmpId, role:"user", content: text }]);
     try {
-      const d = await api.send(convId, text, targetLang);
+      const d = await api.send(convId, text, targetLang, aiProvider);
       if (!convId) setConvId(d.conversationId);
       loadConvs();
       setMsgs(prev => [...prev.filter(m => m.id !== tmpId), d.userMessage, d.assistantMessage]);
@@ -979,6 +973,11 @@ function ChatApp({ user, onSignout }) {
           <button onClick={() => setTtsEnabled(p => !p)} style={{ display:"flex",alignItems:"center",gap:5,background:"none",border:"none",color:ttsEnabled?"var(--green)":"var(--muted)",cursor:"pointer",fontSize:13,padding:"6px 8px",borderRadius:8,fontFamily:"var(--font)" }} title="Toggle auto-speak">
             {ttsEnabled ? "🔊 Auto-speak ON" : "🔇 Auto-speak"}
           </button>
+          {/* AI Provider Selector */}
+          <select value={aiProvider} onChange={e => setAiProvider(e.target.value)} style={{ background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:8,padding:"5px 10px",fontSize:13,cursor:"pointer",fontFamily:"var(--font)",outline:"none" }} title="AI Provider">
+            <option value="groq">⚡ Groq</option>
+            <option value="gemini">✨ Gemini</option>
+          </select>
           <button onClick={onSignout} className="d-hide" style={{ display:"flex",alignItems:"center",gap:5,background:"none",border:"none",color:"var(--rose)",cursor:"pointer",fontSize:13,padding:"6px 8px",borderRadius:8,fontFamily:"var(--font)" }}>
             🚪 Sign Out
           </button>

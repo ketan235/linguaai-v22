@@ -4,7 +4,7 @@ import multer  from 'multer';
 import path    from 'path';
 import fs      from 'fs';
 import { fileURLToPath } from 'url';
-import { translateDocumentContent } from '../services/gemini.service.js';
+import { translateDocumentContent } from '../services/ai.service.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router    = express.Router();
@@ -65,7 +65,7 @@ async function buildTranslatedPDF(translatedText, originalName, targetLanguage) 
 router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded or unsupported type.' });
   try {
-    const { targetLanguage = 'English', sourceLanguage = 'auto' } = req.body;
+    const { targetLanguage = 'English', sourceLanguage = 'auto', provider } = req.body;
     const text = await extractText(req.file.path, req.file.originalname);
     if (!text.trim()) {
       fs.unlinkSync(req.file.path);
