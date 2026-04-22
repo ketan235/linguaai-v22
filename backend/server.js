@@ -14,6 +14,12 @@ import authRoutes      from './routes/auth.routes.js';
 import chatRoutes      from './routes/chat.routes.js';
 import translateRoutes from './routes/translate.routes.js';
 import fileRoutes      from './routes/file.routes.js';
+import cors from "cors";
+
+app.use(cors({
+  origin: "https://linguaai-v22.vercel.app",
+  credentials: true
+}));
 
 dotenv.config();
 
@@ -82,9 +88,3 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅  AI providers: ${enabledProviders.join(', ')}`);
   console.log('📦  MongoDB store active\n');
 });
-
-app.use(cors({
-  origin: "https://linguaai-v22.vercel.app",
-  credentials: true
-}));
-export default app;
