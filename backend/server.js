@@ -83,4 +83,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('📦  MongoDB store active\n');
 });
 
+app.use(cors({
+  origin: "https://linguaai-v22.vercel.app",
+  credentials: true
+}));
 export default app;

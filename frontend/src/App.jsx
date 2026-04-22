@@ -2,38 +2,114 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import "./styles/globals.css";
 
 /* ── API layer ─────────────────────────────────────────── */
+
+const API_BASE =
+  import.meta.env?.VITE_API_URL ||   // for Vite
+  process.env?.REACT_APP_API_URL || // for CRA
+  "http://localhost:5000";          // fallback for local dev
+
 const api = {
   _token: null,
-  init() { this._token = localStorage.getItem("lingua_token"); },
-  _set(t) { this._token = t; t ? localStorage.setItem("lingua_token", t) : localStorage.removeItem("lingua_token"); },
-  async req(method, path, body, isForm = false) {
-    const h = {};
-    const tok = this._token || localStorage.getItem("lingua_token");
-    if (tok) h["Authorization"] = `Bearer ${tok}`;
-    if (!isForm && body) h["Content-Type"] = "application/json";
-    const r = await fetch(`/api${path}`, { method, headers: h, body: isForm ? body : body ? JSON.stringify(body) : undefined });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-    return d;
+
+  init() {
+    this._token = localStorage.getItem("lingua_token");
   },
-  async signin(e, p)    { const d = await this.req("POST", "/auth/signin", { email: e, password: p }); this._set(d.token); return d.user; },
-  async signup(n, e, p) { const d = await this.req("POST", "/auth/signup", { name: n, email: e, password: p }); this._set(d.token); return d.user; },
-  async me()            { return this.req("GET", "/auth/me"); },
-  signout()             { this._set(null); },
-  async forgotPassword(email)          { return this.req("POST", "/auth/forgot-password", { email }); },
-  async resetPassword(token, password) { return this.req("POST", "/auth/reset-password", { token, password }); },
-  async getConvs()      { return this.req("GET", "/chat/conversations"); },
-  async getMsgs(id)     { return this.req("GET", `/chat/conversations/${id}`); },
-  async send(cid, content, tl, provider) { return this.req("POST", "/chat/message", { conversationId: cid, content, targetLanguage: tl, provider }); },
-  async delConv(id)     { return this.req("DELETE", `/chat/conversations/${id}`); },
+
+  _set(t) {
+    this._token = t;
+    t
+      ? localStorage.setItem("lingua_token", t)
+      : localStorage.removeItem("lingua_token");
+  },
+
+  async req(method, path, body, isForm = false) {
+    const headers = {};
+
+    const tok = this._token || localStorage.getItem("lingua_token");
+    if (tok) headers["Authorization"] = `Bearer ${tok}`;
+
+    if (!isForm && body) headers["Content-Type"] = "application/json";
+
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers,
+      body: isForm ? body : body ? JSON.stringify(body) : undefined,
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    return data;
+  },
+
+  async signin(e, p) {
+    const d = await this.req("POST", "/auth/signin", { email: e, password: p });
+    this._set(d.token);
+    return d.user;
+  },
+
+  async signup(n, e, p) {
+    const d = await this.req("POST", "/auth/signup", { name: n, email: e, password: p });
+    this._set(d.token);
+    return d.user;
+  },
+
+  async me() {
+    return this.req("GET", "/auth/me");
+  },
+
+  signout() {
+    this._set(null);
+  },
+
+  async forgotPassword(email) {
+    return this.req("POST", "/auth/forgot-password", { email });
+  },
+
+  async resetPassword(token, password) {
+    return this.req("POST", "/auth/reset-password", { token, password });
+  },
+
+  async getConvs() {
+    return this.req("GET", "/chat/conversations");
+  },
+
+  async getMsgs(id) {
+    return this.req("GET", `/chat/conversations/${id}`);
+  },
+
+  async send(cid, content, tl, provider) {
+    return this.req("POST", "/chat/message", {
+      conversationId: cid,
+      content,
+      targetLanguage: tl,
+      provider,
+    });
+  },
+
+  async delConv(id) {
+    return this.req("DELETE", `/chat/conversations/${id}`);
+  },
+
   async uploadFile(file, tl, provider) {
-    const fd = new FormData(); fd.append("file", file); fd.append("targetLanguage", tl); if (provider) fd.append("provider", provider);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("targetLanguage", tl);
+    if (provider) fd.append("provider", provider);
     return this.req("POST", "/file/upload", fd, true);
   },
-  async googleStatus()  { return this.req("GET", "/auth/google/status"); },
+
+  async googleStatus() {
+    return this.req("GET", "/auth/google/status");
+  },
 };
+
 api.init();
 
+export default api;
 /* ── Language config ───────────────────────────────────── */
 const LANGUAGES = ["English","Spanish","French","German","Italian","Portuguese","Russian","Chinese","Japanese","Korean","Arabic","Hindi","Dutch","Polish","Swedish","Turkish","Vietnamese","Thai","Greek","Hebrew","Indonesian","Malay","Czech","Romanian","Hungarian","Danish","Finnish","Norwegian","Ukrainian","Persian","Bengali","Tamil","Telugu","Marathi","Gujarati","Kannada","Punjabi"];
 
